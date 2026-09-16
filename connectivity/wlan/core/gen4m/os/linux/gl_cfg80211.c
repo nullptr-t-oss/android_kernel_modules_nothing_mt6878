@@ -8681,16 +8681,25 @@ int mtk_cfg80211_set_monitor_channel(struct wiphy *wiphy,
 		ucChannelS2 =
 		ieee80211_frequency_to_channel(chandef->center_freq2);
 
+		/* mapping bandIdx according to the target band should fix channel hopping? */
 		switch (chandef->chan->band) {
-		case NL80211_BAND_2GHZ:
-			ucBand = BAND_2G4;
-			break;
-		case NL80211_BAND_5GHZ:
-			ucBand = BAND_5G;
-			break;
-		default:
-			return -EFAULT;
-		}
+        case NL80211_BAND_2GHZ:
+            ucBand = BAND_2G4;
+            prGlueInfo->ucBandIdx = 0;
+            break;
+        case NL80211_BAND_5GHZ:
+            ucBand = BAND_5G;
+            prGlueInfo->ucBandIdx = 1;
+            break;
+#if (CFG_SUPPORT_WIFI_6G == 1)
+        case NL80211_BAND_6GHZ:
+            ucBand = BAND_6G;
+            prGlueInfo->ucBandIdx = 2;
+            break;
+#endif
+        default:
+            return -EFAULT;
+        }
 
 		switch (chandef->width) {
 		case NL80211_CHAN_WIDTH_80P80:
@@ -8716,6 +8725,14 @@ int mtk_cfg80211_set_monitor_channel(struct wiphy *wiphy,
 		default:
 			return -EFAULT;
 		}
+
+		/* we are basically mirroring what we were doing in mtk_init_monitor_role
+		 * only enable the target mac
+		 */
+		for (i = 0; i < CFG_MONITOR_BAND_NUM; i++)
+            prGlueInfo->aucBandIdxEn[i] = 0;
+
+        prGlueInfo->aucBandIdxEn[prGlueInfo->ucBandIdx] = 1;
 	}
 
 	prGlueInfo->ucPriChannel = ucPriChannel;

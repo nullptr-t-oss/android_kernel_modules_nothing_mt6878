@@ -6618,13 +6618,32 @@ void mtk_init_monitor_role(struct wiphy *wiphy,
 	ndev->type = ARPHRD_IEEE80211_RADIOTAP;
 	ndev->ieee80211_ptr->iftype = NL80211_IFTYPE_MONITOR;
 	prGlueInfo->fgIsEnableMon = TRUE;
-	prGlueInfo->ucBandIdx = 0xFF;
+	
+	/* respect the previous band set by the user, if not then default to 2.4ghz */
+	switch (prGlueInfo->ucBand) {
+    case BAND_5G:
+        prGlueInfo->ucBandIdx = 1;
+        break;
+#if (CFG_SUPPORT_WIFI_6G == 1)
+    case BAND_6G:
+        prGlueInfo->ucBandIdx = 2;
+        break;
+#endif
+    default:
+        prGlueInfo->ucBandIdx = 0;
+        break;
+    }
+
 	prGlueInfo->fgDropFcsErrorFrame = TRUE;
 	prGlueInfo->u2Aid = 0;
 	for (i = 0; i < CFG_MONITOR_BAND_NUM; i++) {
 		prGlueInfo->aucBandIdxEn[i] = 0;
 		prGlueInfo->u4AmpduRefNum[i] = 0;
 	}
+
+	/* enable target mac */
+	prGlueInfo->aucBandIdxEn[prGlueInfo->ucBandIdx] = 1;
+
 	DBGLOG(INIT, INFO, "enable sniffer mode\n");
 }
 
