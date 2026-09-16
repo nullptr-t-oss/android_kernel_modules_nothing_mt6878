@@ -9181,6 +9181,7 @@ int priv_driver_set_monitor(struct net_device *prNetDev,
 	prAdapter = prGlueInfo->prAdapter;
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
+	pr_err("mtk_debug: command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
 	DBGLOG(REQ, LOUD, "argc is %d, apcArgv[0] = %s\n\n", i4Argc, *apcArgv);
 
@@ -9190,6 +9191,7 @@ int priv_driver_set_monitor(struct net_device *prNetDev,
 	this_char++;
 
 	DBGLOG(REQ, LOUD, "string = %s\n", this_char);
+	pr_err("mtk_debug: string = %s\n", this_char);
 
 	i4Recv = sscanf(this_char, "%d-%d-%d-%d-%d-%d-%d-%d-%d",
 			&ucBandIdx, &ucBand, &ucPriChannel,
