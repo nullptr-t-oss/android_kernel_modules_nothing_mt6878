@@ -8709,6 +8709,7 @@ int mtk_cfg80211_set_monitor_channel(struct wiphy *wiphy,
 			else
 				ucSco = CHNL_EXT_SCB;
 			break;
+		case NL80211_CHAN_WIDTH_20_NOHT:
 		case NL80211_CHAN_WIDTH_20:
 			ucChannelWidth = CW_20_40MHZ;
 			break;
