@@ -4017,6 +4017,10 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 		return WLAN_STATUS_NOT_ACCEPTED;
 	}
 
+	pr_info("mtk_debug: prBssInfo is %s\n", prBssInfo ? "not null" : "null" );
+	pr_info("mtk_debug: prDevType is %u\n", prDev->type);
+	pr_info("mtk_debug: fgIsEnableMon is %u\n", prGlueInfo->fgIsEnableMon);
+
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
 #if (CFG_SINGLE_BAND_MLSR_56 == 1)
 	if (prBssInfo) {
