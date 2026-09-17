@@ -8663,6 +8663,7 @@ int mtk_cfg80211_set_monitor_channel(struct wiphy *wiphy,
 	uint8_t ucChannelS2 = 0;
 	uint32_t u4BufLen;
 	uint32_t rStatus;
+	uint8_t i = 0;
 
 	WIPHY_PRIV(wiphy, prGlueInfo);
 	ASSERT(prGlueInfo);
