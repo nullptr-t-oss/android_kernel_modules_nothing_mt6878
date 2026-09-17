@@ -3702,6 +3702,160 @@ u_int8_t kalIsPairwiseEapolPacket(void *prPacket)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * \brief This function is the packet injection handler for monitor mode.
+ *
+ * \param[in] prOrgSkb  Pointer of the sk_buff to be sent
+ * \param[in] prDev  Pointer to struct net_device
+ * \param[in] prGlueInfo  Pointer of prGlueInfo
+ *
+ * \retval WLAN_STATUS
+ */
+/*----------------------------------------------------------------------------*/
+static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *prDev, struct GLUE_INFO *prGlueInfo)
+{
+	struct sk_buff *prSkbNew = NULL;
+	struct sk_buff *prSkb = NULL;
+	struct mt66xx_chip_info *prChipInfo;
+    uint32_t u4TxHeadRoomSize = 0;
+    struct ADAPTER *prAdapter = NULL;
+
+    struct IEEE80211_RADIOTAP_HEADER *prRadiotapHdr;
+    uint16_t u2RadiotapLen;
+    struct MSDU_INFO *prMsduInfo;
+	uint32_t u4PageCount;
+
+	prAdapter = prGlueInfo->prAdapter;
+	prChipInfo = prGlueInfo->prAdapter->chip_info;
+    u4TxHeadRoomSize = NIC_TX_DESC_AND_PADDING_LENGTH +
+		prChipInfo->txd_append_size;
+
+    if (skb_headroom(prOrgSkb) < u4TxHeadRoomSize) {
+		/*
+		 * Should not happen
+		 * kernel crash may happen as skb shared info
+		 * channged.
+		 * offer an change for lucky anyway
+		 */
+        prSkbNew = skb_realloc_headroom(prOrgSkb, u4TxHeadRoomSize);
+        if (!prSkbNew) {
+            dev_kfree_skb(prOrgSkb);
+			DBGLOG(INIT, ERROR,
+				"prChipInfo = %pM, u4TxHeadRoomSize: %u\n",
+				prChipInfo, u4TxHeadRoomSize);
+            return WLAN_STATUS_NOT_ACCEPTED;
+        }
+        dev_kfree_skb(prOrgSkb);
+        prSkb = prSkbNew;
+    } else {
+        prSkb = prOrgSkb;
+    }
+
+    /* strip radiotap header to expose the raw 802.11 frame */
+    prRadiotapHdr = (struct IEEE80211_RADIOTAP_HEADER *)prSkb->data;
+    u2RadiotapLen = le16_to_cpu(prRadiotapHdr->u2ItLen);
+
+	/* drop malformed injection packets */
+    if (unlikely(prSkb->len < u2RadiotapLen)) {
+		DBGLOG(TX, ERROR, "mtk_debug: malformed injection: skb_len=%u < radiotap_len=%u\n",
+               prSkb->len, u2RadiotapLen);
+        dev_kfree_skb(prSkb);
+        return WLAN_STATUS_INVALID_PACKET;
+    }
+
+    skb_pull(prSkb, u2RadiotapLen);
+
+    /* copied from nicTxGenerateDescTemplate in nic_tx.c
+	 * generate Tx descriptor template
+	*/
+    prMsduInfo = cnmPktAlloc(prAdapter, 0);
+	if (!prMsduInfo) {
+		DBGLOG(TX, WARN, "mtk_debug: injection failed: cnmPktAlloc returned NULL\n");
+		dev_kfree_skb(prSkb);
+		return WLAN_STATUS_RESOURCES;
+	}
+
+    /* configure MsduInfo template for raw 802.11 Tx */
+	prMsduInfo->eSrc = TX_PACKET_OS;
+	prMsduInfo->fgIs802_11 = TRUE;
+    prMsduInfo->fgIs802_3 = FALSE; /* not ethernet frame */
+    prMsduInfo->prPacket = prSkb;
+    prMsduInfo->fgIsPacketSkb = TRUE;
+    prMsduInfo->u2FrameLength = prSkb->len;
+	prMsduInfo->ucRateMode = MSDU_RATE_MODE_AUTO;
+    prMsduInfo->ucBssIndex = 0;
+	prMsduInfo->ucStaRecIndex = STA_REC_INDEX_NOT_FOUND;
+	prMsduInfo->ucPacketType = TX_PACKET_TYPE_DATA;
+	prMsduInfo->ucTC = TC1_INDEX;
+	prMsduInfo->pfTxDoneHandler = NULL;
+	prMsduInfo->pfHifTxMsduDoneCb = nicHifTxMsduDoneCb;
+
+    /* initialize bss index */
+	GLUE_SET_PKT_BSS_IDX(prSkb, 0);
+
+	/* acquire hardware Tx resource (nicTxMsduInfoList)
+	 * nicTxGetDataPageCount function returns page count of frame
+	 * note: we had earlier set prMsduInfo->u2FrameLength = prSkb->len
+	 *       hence u2FrameLength doesn't include description padding
+	 *       so pass fgIncludeDesc as FALSE
+	 *       (we fill datadesc later)
+	 */
+	u4PageCount = nicTxGetDataPageCount(prAdapter, prMsduInfo->u2FrameLength, FALSE);
+	if (nicTxAcquireResource(prAdapter, prMsduInfo->ucTC, u4PageCount, TRUE) != WLAN_STATUS_SUCCESS) {
+		/* no free space left, mission abort */
+		DBGLOG(TX, WARN, "mtk_debug: injection failed: hw resource full. TC=%d, ReqPages=%u\n",
+               prMsduInfo->ucTC, u4PageCount);
+		nicTxReturnMsduInfo(prAdapter, prMsduInfo);
+		dev_kfree_skb(prSkb);
+		return WLAN_STATUS_RESOURCES;
+	}
+
+	/* fill hardware Tx descriptor */
+	nicTxFillDataDesc(prAdapter, prMsduInfo);
+
+	/* Update NetDev statisitcs */
+	prDev->stats.tx_bytes += prSkb->len;
+	prDev->stats.tx_packets++;
+
+	DBGLOG(TX, TRACE, "mtk_debug: injecting 802.11 frame: len=%u, TC=%d\n",
+           prMsduInfo->u2FrameLength, prMsduInfo->ucTC);
+
+	/* disclaimer: single threaded one was written by me and multithreaded
+	 * was partially written by ai
+	*/
+#if CFG_SUPPORT_MULTITHREAD
+	KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_TX_PORT_QUE);
+#if CFG_FIX_2_TX_PORT
+	QUEUE_INSERT_TAIL(&(prAdapter->rTxP0Queue), prMsduInfo);
+#else
+	QUEUE_INSERT_TAIL(&(prAdapter->rTxPQueue[0][prMsduInfo->ucTC]), prMsduInfo);
+#endif
+	KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_TX_PORT_QUE);
+
+	kalSetTxEvent2Hif(prGlueInfo);
+#else
+	{
+		/* extracted from nicTxMsduInfoList for single threaded ops */
+		struct QUE qDataPort;
+		QUEUE_INITIALIZE(&qDataPort);
+		/* we are dealing with single frames and not a linked list so
+		 * no need to backup prMsduInfo and set it to null
+		 * in nicTxMsduInfoList :
+		 * - prNextMsduInfo holds prMsduInfo.next
+		 * - since next is backed up, set next to null oth inserting
+		 *   node will insert rest of the ll
+		 * - after queue insertion is done, set prMsduInfo to prNextMsduInfo
+		 * - continue traversal until prMsduInfo is not null
+		 */
+		QUEUE_INSERT_TAIL(&qDataPort, prMsduInfo);
+		nicTxMsduQueue(prAdapter, 0, &qDataPort);
+	}
+#endif
+
+	return WLAN_STATUS_SUCCESS;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
  * \brief This function is TX entry point of NET DEVICE.
  *
  * \param[in] prSkb  Pointer of the sk_buff to be sent
@@ -3747,6 +3901,18 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 		DBGLOG(INIT, INFO, "Invalid ucBssIndex:%u\n", ucBssIndex);
 		dev_kfree_skb(prOrgSkb);
 		return WLAN_STATUS_NOT_ACCEPTED;
+	}
+
+	pr_info("mtk_debug: prBssInfo is %s\n", prBssInfo ? "not null" : "null" );
+	pr_info("mtk_debug: prDevType is %u\n", prDev->type);
+	pr_info("mtk_debug: fgIsEnableMon is %u\n", prGlueInfo->fgIsEnableMon);
+
+	/* wlanProcessTxFrame processes the packets as ethernet frames
+	 * so we trace how frames are transmitted and scavenge parts
+	 * from them to contruct our own xmit function for injection
+	 */
+	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP) {
+		return mtk_monitor_xmit(prOrgSkb, prDev, prGlueInfo);
 	}
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
