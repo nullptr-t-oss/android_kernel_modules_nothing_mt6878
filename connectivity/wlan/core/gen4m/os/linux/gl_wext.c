@@ -1283,6 +1283,15 @@ wext_set_mode(struct net_device *prNetDev,
 		rOpMode.eOpMode = NET_TYPE_INFRA;
 		break;
 
+	case IW_MODE_MONITOR:
+		if (prNetDev->type == ARPHRD_IEEE80211_RADIOTAP) {
+			return 0;
+			pr_info("mtk_debug: already in monitor mode, returning 0");
+		}
+		
+		pr_err("mtk_debug: not in monitor mode return EOPNOTSUPP");
+		return -EOPNOTSUPP;
+
 	default:
 		DBGLOG(INIT, INFO, "%s(): Set UNSUPPORTED Mode = %d.\n",
 		       __func__, *pu4Mode);
@@ -1344,6 +1353,12 @@ wext_get_mode(struct net_device *prNetDev,
 	if (GLUE_CHK_PR2(prNetDev, pu4Mode) == FALSE)
 		return -EINVAL;
 	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prNetDev));
+
+	if (prNetDev->type == ARPHRD_IEEE80211_RADIOTAP) {
+		pr_info("mtk_debug: set pu4mode to IW_MODE_MONITOR and teturn 0");
+		*pu4Mode = IW_MODE_MONITOR;
+		return 0;
+	}
 
 	rStatus = kalIoctl(prGlueInfo, wlanoidQueryInfrastructureMode, &eOpMode,
 			   sizeof(eOpMode), &u4BufLen);
