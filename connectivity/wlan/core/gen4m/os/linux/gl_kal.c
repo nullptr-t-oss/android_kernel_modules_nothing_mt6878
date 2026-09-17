@@ -3700,6 +3700,24 @@ u_int8_t kalIsPairwiseEapolPacket(void *prPacket)
 	return FALSE;
 }
 
+/* i aint including radiotap for now to avoid breaiking somnething else so use a mininal one copied from the mtk radiotap
+ * orig impl:
+ *
+ * struct IEEE80211_RADIOTAP_HEADER {
+ *	uint8_t ucItVersion;
+ *	uint8_t ucItPad;
+ *	uint16_t u2ItLen;
+ *	uint32_t u4ItPresent;
+ * } __KAL_ATTRIB_PACKED__;
+ *
+*/
+struct mtk_radiotap_hdr {
+	uint8_t it_version;
+	uint8_t it_pad;
+	uint16_t it_len;
+	uint32_t it_present;
+} __attribute__((packed));
+
 /*----------------------------------------------------------------------------*/
 /*
  * \brief This function is the packet injection handler for monitor mode.
@@ -3723,6 +3741,8 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
     uint16_t u2RadiotapLen;
     struct MSDU_INFO *prMsduInfo;
 	uint32_t u4PageCount;
+
+	KAL_SPIN_LOCK_DECLARATION();
 
 	prAdapter = prGlueInfo->prAdapter;
 	prChipInfo = prGlueInfo->prAdapter->chip_info;
@@ -3751,8 +3771,8 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
     }
 
     /* strip radiotap header to expose the raw 802.11 frame */
-    prRadiotapHdr = (struct IEEE80211_RADIOTAP_HEADER *)prSkb->data;
-    u2RadiotapLen = le16_to_cpu(prRadiotapHdr->u2ItLen);
+    prRadiotapHdr = (struct mtk_radiotap_hdr *)prSkb->data;
+    u2RadiotapLen = le16_to_cpu(prRadiotapHdr->it_len);
 
 	/* drop malformed injection packets */
     if (unlikely(prSkb->len < u2RadiotapLen)) {
@@ -3824,7 +3844,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 	*/
 #if CFG_SUPPORT_MULTITHREAD
 	KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_TX_PORT_QUE);
-#if CFG_FIX_2_TX_PORT
+#if CFG_FIX_2_TX_PORT && (CFG_FIX_2_TX_PORT == 1)
 	QUEUE_INSERT_TAIL(&(prAdapter->rTxP0Queue), prMsduInfo);
 #else
 	QUEUE_INSERT_TAIL(&(prAdapter->rTxPQueue[0][prMsduInfo->ucTC]), prMsduInfo);
