@@ -4021,6 +4021,14 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
     /* strip radiotap header to expose the raw 802.11 frame */
     prRadiotapHdr = (struct IEEE80211_RADIOTAP_HEADER *)prSkb->data;
     u2RadiotapLen = le16_to_cpu(prRadiotapHdr->u2ItLen);
+
+	/* drop malformed injection packets */
+    if (unlikely(prSkb->len < u2RadiotapLen)) {
+		pr_info("mtk_debug: dropping malformed injection packet");
+        dev_kfree_skb(prSkb);
+        return WLAN_STATUS_INVALID_PACKET;
+    }
+
     skb_pull(prSkb, u2RadiotapLen);
 
     /* copied from nicTxGenerateDescTemplate in nic_tx.c
