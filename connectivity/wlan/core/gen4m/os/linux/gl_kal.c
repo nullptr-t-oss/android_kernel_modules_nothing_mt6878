@@ -3772,17 +3772,22 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 
     /* strip radiotap header to expose the raw 802.11 frame */
     prRadiotapHdr = (struct mtk_radiotap_hdr *)prSkb->data;
-    u2RadiotapLen = le16_to_cpu(prRadiotapHdr->it_len);
 
-	/* drop malformed injection packets */
-    if (unlikely(prSkb->len < u2RadiotapLen)) {
-		pr_err("mtk_debug: malformed injection: skb_len=%u < radiotap_len=%u\n",
-               prSkb->len, u2RadiotapLen);
-        dev_kfree_skb(prSkb);
-        return WLAN_STATUS_INVALID_PACKET;
-    }
+	if (prRadiotapHdr->it_version == 0) {
+		u2RadiotapLen = le16_to_cpu(prRadiotapHdr->it_len);
 
-    skb_pull(prSkb, u2RadiotapLen);
+		/* drop malformed injection packets */
+		if (unlikely(prSkb->len < u2RadiotapLen)) {
+			pr_err("mtk_debug: malformed injection: skb_len=%u < radiotap_len=%u\n",
+				prSkb->len, u2RadiotapLen);
+			dev_kfree_skb(prSkb);
+			return WLAN_STATUS_INVALID_PACKET;
+		}
+
+		skb_pull(prSkb, u2RadiotapLen);
+	} else {
+		pr_info("mtk_debug: raw 802.11 frame received (no radiotap)\n");
+	}
 
     /* copied from nicTxGenerateDescTemplate in nic_tx.c
 	 * generate Tx descriptor template
