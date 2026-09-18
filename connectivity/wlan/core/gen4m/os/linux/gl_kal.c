@@ -3737,7 +3737,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
     uint32_t u4TxHeadRoomSize = 0;
     struct ADAPTER *prAdapter = NULL;
 
-    struct IEEE80211_RADIOTAP_HEADER *prRadiotapHdr;
+    struct mtk_radiotap_hdr *prRadiotapHdr;
     uint16_t u2RadiotapLen;
     struct MSDU_INFO *prMsduInfo;
 	uint32_t u4PageCount;
