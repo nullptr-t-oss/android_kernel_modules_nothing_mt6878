@@ -3776,7 +3776,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 
 	/* drop malformed injection packets */
     if (unlikely(prSkb->len < u2RadiotapLen)) {
-		DBGLOG(TX, ERROR, "mtk_debug: malformed injection: skb_len=%u < radiotap_len=%u\n",
+		pr_err("mtk_debug: malformed injection: skb_len=%u < radiotap_len=%u\n",
                prSkb->len, u2RadiotapLen);
         dev_kfree_skb(prSkb);
         return WLAN_STATUS_INVALID_PACKET;
@@ -3789,7 +3789,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 	*/
     prMsduInfo = cnmPktAlloc(prAdapter, 0);
 	if (!prMsduInfo) {
-		DBGLOG(TX, WARN, "mtk_debug: injection failed: cnmPktAlloc returned NULL\n");
+		pr_info("mtk_debug: injection failed: cnmPktAlloc returned NULL\n");
 		dev_kfree_skb(prSkb);
 		return WLAN_STATUS_RESOURCES;
 	}
@@ -3822,7 +3822,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 	u4PageCount = nicTxGetDataPageCount(prAdapter, prMsduInfo->u2FrameLength, FALSE);
 	if (nicTxAcquireResource(prAdapter, prMsduInfo->ucTC, u4PageCount, TRUE) != WLAN_STATUS_SUCCESS) {
 		/* no free space left, mission abort */
-		DBGLOG(TX, WARN, "mtk_debug: injection failed: hw resource full. TC=%d, ReqPages=%u\n",
+		pr_warn("mtk_debug: injection failed: hw resource full. TC=%d, ReqPages=%u\n",
                prMsduInfo->ucTC, u4PageCount);
 		nicTxReturnMsduInfo(prAdapter, prMsduInfo);
 		dev_kfree_skb(prSkb);
@@ -3836,7 +3836,7 @@ static uint32_t mtk_monitor_xmit(struct sk_buff *prOrgSkb, struct net_device *pr
 	prDev->stats.tx_bytes += prSkb->len;
 	prDev->stats.tx_packets++;
 
-	DBGLOG(TX, TRACE, "mtk_debug: injecting 802.11 frame: len=%u, TC=%d\n",
+	pr_info("mtk_debug: injecting 802.11 frame: len=%u, TC=%d\n",
            prMsduInfo->u2FrameLength, prMsduInfo->ucTC);
 
 	/* disclaimer: single threaded one was written by me and multithreaded
