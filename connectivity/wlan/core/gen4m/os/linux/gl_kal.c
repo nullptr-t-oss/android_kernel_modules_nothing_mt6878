@@ -3922,6 +3922,17 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 		return WLAN_STATUS_ADAPTER_NOT_READY;
 	}
 
+	/* wlanProcessTxFrame processes the packets as ethernet frames
+	 * so we trace how frames are transmitted and scavenge parts
+	 * from them to contruct our own xmit function for injection
+	 */
+	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP) {
+		return mtk_monitor_xmit(prOrgSkb, prDev, prGlueInfo);
+	}
+
+	/* intercept before ucBssIndex validation 
+     * because monitor mode uses a dummy index (255) that fails this check
+	 */
 	if (unlikely(ucBssIndex >= MAX_BSSID_NUM)) {
 		DBGLOG(INIT, INFO, "Invalid ucBssIndex:%u\n", ucBssIndex);
 		dev_kfree_skb(prOrgSkb);
@@ -3931,14 +3942,6 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 	pr_info("mtk_debug: prBssInfo is %s\n", prBssInfo ? "not null" : "null" );
 	pr_info("mtk_debug: prDevType is %u\n", prDev->type);
 	pr_info("mtk_debug: fgIsEnableMon is %u\n", prGlueInfo->fgIsEnableMon);
-
-	/* wlanProcessTxFrame processes the packets as ethernet frames
-	 * so we trace how frames are transmitted and scavenge parts
-	 * from them to contruct our own xmit function for injection
-	 */
-	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP) {
-		return mtk_monitor_xmit(prOrgSkb, prDev, prGlueInfo);
-	}
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
 #if (CFG_SINGLE_BAND_MLSR_56 == 1)
