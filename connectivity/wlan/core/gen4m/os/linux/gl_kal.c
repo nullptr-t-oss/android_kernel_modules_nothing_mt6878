@@ -3926,7 +3926,7 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 	 * so we trace how frames are transmitted and scavenge parts
 	 * from them to contruct our own xmit function for injection
 	 */
-	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP) {
+	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP || ucBssIndex >= MAX_BSSID_NUM) {
 		return mtk_monitor_xmit(prOrgSkb, prDev, prGlueInfo);
 	}
 
@@ -3939,9 +3939,10 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 		return WLAN_STATUS_NOT_ACCEPTED;
 	}
 
-	pr_info("mtk_debug: prBssInfo is %s\n", prBssInfo ? "not null" : "null" );
-	pr_info("mtk_debug: prDevType is %u\n", prDev->type);
-	pr_info("mtk_debug: fgIsEnableMon is %u\n", prGlueInfo->fgIsEnableMon);
+	/* pr_info("mtk_debug: prBssInfo is %s\n", prBssInfo ? "not null" : "null" );
+	 * pr_info("mtk_debug: prDevType is %u\n", prDev->type);
+	 * pr_info("mtk_debug: fgIsEnableMon is %u\n", prGlueInfo->fgIsEnableMon);
+	 */
 
 	prBssInfo = GET_BSS_INFO_BY_INDEX(prAdapter, ucBssIndex);
 #if (CFG_SINGLE_BAND_MLSR_56 == 1)
