@@ -3926,7 +3926,10 @@ kalHardStartXmit(struct sk_buff *prOrgSkb,
 	 * so we trace how frames are transmitted and scavenge parts
 	 * from them to contruct our own xmit function for injection
 	 */
+	pr_info("mtk_debug: TX hook eval - fgMon:%d type:%d bss:%u skblen:%u\n",
+            prGlueInfo->fgIsEnableMon, prDev->type, ucBssIndex, prOrgSkb->len);
 	if (prGlueInfo->fgIsEnableMon || prDev->type == ARPHRD_IEEE80211_RADIOTAP || ucBssIndex >= MAX_BSSID_NUM) {
+		pr_info("mtk_debug: start injection hook");
 		return mtk_monitor_xmit(prOrgSkb, prDev, prGlueInfo);
 	}
 
